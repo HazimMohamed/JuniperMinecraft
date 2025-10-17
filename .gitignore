@@ -1,0 +1,26 @@
+# Node
+node_modules/
+npm-debug.log
+*.log
+
+# Bot generated files
+bot/chunk_data.JSON
+
+# Minecraft server data
+mc_server/data/world/
+mc_server/data/logs/
+mc_server/data/*.jar
+mc_server/data/libraries/
+mc_server/data/versions/
+mc_server/data/usercache.json
+mc_server/data/session.lock
+mc_server/data/*.dat
+mc_server/data/*.dat_old
+
+# Environment files
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db

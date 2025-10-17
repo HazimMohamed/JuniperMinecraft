@@ -1,0 +1,24 @@
+{
+  "name": "minecraft-navigator-bot",
+  "version": "1.0.0",
+  "description": "ML-powered Minecraft navigation bot with 3D viewer and ground mapping",
+  "main": "navigator-bot.js",
+  "scripts": {
+    "bot": "node navigator-bot.js"
+  },
+  "keywords": [
+    "minecraft",
+    "bot",
+    "mineflayer",
+    "navigation",
+    "machine-learning"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "canvas": "^3.2.0",
+    "minecraft-protocol": "^1.62.0",
+    "mineflayer": "^4.33.0",
+    "prismarine-viewer": "^1.33.0"
+  }
+}
