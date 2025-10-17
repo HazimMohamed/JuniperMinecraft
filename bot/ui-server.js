@@ -9,7 +9,7 @@ const vm = require('vm')
 
 const UI_PORT = 3009
 
-function startUIServer(bot) {
+function startUIServer(bot, printGroundMap) {
   const app = express()
   const httpServer = createServer(app)
   const io = new Server(httpServer)
@@ -47,7 +47,8 @@ function startUIServer(bot) {
       bot: bot,
       vec3: require('vec3'),
       console: console,
-      // Add any other useful globals
+      printGroundMap: printGroundMap,
+      ground: printGroundMap  // Alias for convenience
     }
 
     socket.on('eval', (code) => {

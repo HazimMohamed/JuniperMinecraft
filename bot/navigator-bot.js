@@ -108,8 +108,8 @@ bot.on('spawn', () => {
   logger.info('Bot spawned in the world')
   logger.info(`Position: ${bot.entity.position}`)
 
-  // Start UI server
-  startUIServer(bot)
+  // Start UI server with ground map function
+  startUIServer(bot, printGroundMap)
 
   // Start the 3D viewer
   const viewerPort = 3007
