@@ -17,17 +17,19 @@ const bot = mineflayer.createBot({
 bot.on('chat', (username, message) => {
   if (username === bot.username) return
 
-  // Command: print ground map of spawn chunk
-  if (message === 'ground') {
-    printGroundMap()
+  // Command: observe world and return ground blocks
+  if (message === 'observe') {
+    const observation = observeWorld()
+    logger.info(`World observation complete: ${observation.blocks.length} blocks`)
     return
   }
 
   bot.chat(message)
 })
 
-// Function to print ground-level blocks in a 4-chunk radius around the bot
-function printGroundMap() {
+// Function to observe ground-level blocks in a 4-chunk radius around the bot
+// Returns structured data for ML model input / visualization
+function observeWorld() {
   const botPos = bot.entity.position
 
   // Calculate bot's chunk coordinates
@@ -77,14 +79,32 @@ function printGroundMap() {
     }
   }
 
-  logger.info(`Found ${groundBlocks.length} ground blocks`)
-  // Log a sample instead of all blocks
-  logger.info(`Sample blocks (showing first 10):`)
-  groundBlocks.slice(0, 10).forEach(b => {
-    logger.info(`  (${b.x}, ${b.y}, ${b.z}): ${b.name} [stateId: ${b.stateId}]`)
-  })
+  logger.info(`World observation: ${groundBlocks.length} ground blocks in ${totalChunks} chunks`)
+  logger.info(`Bot position: (${botPos.x.toFixed(1)}, ${botPos.y.toFixed(1)}, ${botPos.z.toFixed(1)})`)
+  logger.info(`Area bounds: X[${startX}, ${endX}] Z[${startZ}, ${endZ}]`)
 
-  bot.chat(`Printed ground map for ${chunkRadius}-chunk radius - ${groundBlocks.length} blocks in ${totalChunks} chunks`)
+  // Return structured observation data
+  return {
+    timestamp: Date.now(),
+    botPosition: {
+      x: botPos.x,
+      y: botPos.y,
+      z: botPos.z
+    },
+    botChunk: {
+      x: botChunkX,
+      z: botChunkZ
+    },
+    area: {
+      startX,
+      endX,
+      startZ,
+      endZ,
+      chunkRadius,
+      totalChunks
+    },
+    blocks: groundBlocks
+  }
 }
 
 // Log errors and kick reasons:
@@ -102,10 +122,16 @@ bot.on('spawn', () => {
 
   // Start UI server with REPL context
   // Add any functions you want available in the web REPL here
-  startUIServer(bot, {
-    printGroundMap: printGroundMap,
-    ground: printGroundMap  // Alias for convenience
+  const uiServer = startUIServer(bot, {
+    observeWorld: observeWorld,
+    observe: observeWorld  // Alias for convenience
   })
+
+  // Automatically observe and broadcast world state every 5 seconds
+  setInterval(() => {
+    const observation = observeWorld()
+    uiServer.broadcastObservation(observation)
+  }, 5000)
 
   // Start the 3D viewer
   const viewerPort = 3007

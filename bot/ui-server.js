@@ -15,6 +15,9 @@ function startUIServer(bot, replContext = {}) {
   const httpServer = createServer(app)
   const io = new Server(httpServer)
 
+  // Store reference to observeWorld function for world observation namespace
+  const observeWorld = replContext.observeWorld || replContext.observe
+
   // Serve static files from public directory
   app.use(express.static(path.join(__dirname, 'public')))
 
@@ -101,6 +104,22 @@ function startUIServer(bot, replContext = {}) {
     })
   })
 
+  // Socket.IO namespace for world observations
+  const worldNamespace = io.of('/world')
+
+  worldNamespace.on('connection', (socket) => {
+    logger.info('UI connected to world observer')
+
+    socket.on('disconnect', () => {
+      logger.info('UI disconnected from world observer')
+    })
+  })
+
+  // Function to broadcast world observation to all connected clients
+  function broadcastObservation(observation) {
+    worldNamespace.emit('observation', observation)
+  }
+
   // Hook into winston to broadcast new logs to connected clients
   const { Writable } = require('stream')
 
@@ -148,7 +167,12 @@ function startUIServer(bot, replContext = {}) {
     logger.info('============================')
   })
 
-  return { app, httpServer, io }
+  return {
+    app,
+    httpServer,
+    io,
+    broadcastObservation  // Expose function to broadcast observations
+  }
 }
 
 module.exports = { startUIServer }

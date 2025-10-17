@@ -15,10 +15,20 @@
   </header>
 
   <div class="container">
-    <!-- Left side: Prismarine Viewer -->
+    <!-- Left column: Viewers -->
     <div class="viewer-section">
-      <h2>3D Viewer</h2>
-      <iframe id="viewer-frame" src="http://localhost:3007" frameborder="0"></iframe>
+      <!-- 3D Viewer -->
+      <div class="panel viewer-panel">
+        <h2>3D Viewer</h2>
+        <iframe id="viewer-frame" src="http://localhost:3007" frameborder="0"></iframe>
+      </div>
+
+      <!-- World Observation (Top-down view) -->
+      <div class="panel world-panel">
+        <h2>🗺️ World Observation <span id="world-status">(waiting...)</span></h2>
+        <canvas id="world-canvas"></canvas>
+        <div id="world-info"></div>
+      </div>
     </div>
 
     <!-- Right side: Bot info and controls -->
