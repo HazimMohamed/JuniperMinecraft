@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juniper Bot Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🌲 Juniper Bot Dashboard</h1>
+    <div class="status">
+      <span id="connection-status" class="status-indicator disconnected">Disconnected</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Left side: Prismarine Viewer -->
+    <div class="viewer-section">
+      <h2>3D Viewer</h2>
+      <iframe id="viewer-frame" src="http://localhost:3007" frameborder="0"></iframe>
+    </div>
+
+    <!-- Right side: Bot info and controls -->
+    <div class="info-section">
+      <!-- Bot Stats -->
+      <div class="panel">
+        <h3>📊 Bot Status</h3>
+        <div id="bot-stats">
+          <p>Connecting...</p>
+        </div>
+      </div>
+
+      <!-- Console Logs -->
+      <div class="panel logs-panel">
+        <h3>📝 Console Logs</h3>
+        <div id="logs-container" class="scrollable"></div>
+      </div>
+
+      <!-- REPL -->
+      <div class="panel repl-panel">
+        <h3>💻 REPL</h3>
+        <div id="repl-output" class="scrollable"></div>
+        <div class="repl-input">
+          <input type="text" id="repl-input" placeholder="bot.entity.position" />
+          <button id="repl-submit">Execute</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

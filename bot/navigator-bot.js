@@ -3,6 +3,8 @@ const repl = require('repl')
 const vec3 = require('vec3')
 const os = require('os')
 const { mineflayer: mineflayerViewer } = require('prismarine-viewer')
+const { logger } = require('./logger')
+const { startUIServer } = require('./ui-server')
 
 const bot = mineflayer.createBot({
   host: 'localhost', // minecraft server ip
@@ -55,11 +57,11 @@ function printGroundMap() {
 
   const totalChunks = (chunkRadius * 2 + 1) * (chunkRadius * 2 + 1)
 
-  console.log(`\n=== Ground map for ${chunkRadius}-chunk radius ===`)
-  console.log(`Bot chunk: (${botChunkX}, ${botChunkZ})`)
-  console.log(`Scanning chunks: (${startChunkX}, ${startChunkZ}) to (${endChunkX}, ${endChunkZ})`)
-  console.log(`Total area: ${totalChunks} chunks (${endX - startX + 1}x${endZ - startZ + 1} blocks)`)
-  console.log(`Block coordinates: X ${startX} to ${endX}, Z ${startZ} to ${endZ}\n`)
+  logger.info(`=== Ground map for ${chunkRadius}-chunk radius ===`)
+  logger.info(`Bot chunk: (${botChunkX}, ${botChunkZ})`)
+  logger.info(`Scanning chunks: (${startChunkX}, ${startChunkZ}) to (${endChunkX}, ${endChunkZ})`)
+  logger.info(`Total area: ${totalChunks} chunks (${endX - startX + 1}x${endZ - startZ + 1} blocks)`)
+  logger.info(`Block coordinates: X ${startX} to ${endX}, Z ${startZ} to ${endZ}`)
 
   const groundBlocks = []
 
@@ -83,26 +85,31 @@ function printGroundMap() {
     }
   }
 
-  console.log(`Found ${groundBlocks.length} ground blocks:`)
-  groundBlocks.forEach(b => {
-    console.log(`  (${b.x}, ${b.y}, ${b.z}): ${b.name} [stateId: ${b.stateId}]`)
+  logger.info(`Found ${groundBlocks.length} ground blocks`)
+  // Log a sample instead of all blocks
+  logger.info(`Sample blocks (showing first 10):`)
+  groundBlocks.slice(0, 10).forEach(b => {
+    logger.info(`  (${b.x}, ${b.y}, ${b.z}): ${b.name} [stateId: ${b.stateId}]`)
   })
 
   bot.chat(`Printed ground map for ${chunkRadius}-chunk radius - ${groundBlocks.length} blocks in ${totalChunks} chunks`)
 }
 
 // Log errors and kick reasons:
-bot.on('kicked', console.log)
-bot.on('error', console.log)
+bot.on('kicked', (reason) => logger.error(`Bot kicked: ${reason}`))
+bot.on('error', (err) => logger.error(`Bot error: ${err.message}`))
 
 // Additional helpful events
 bot.on('login', () => {
-  console.log('Bot logged in successfully')
+  logger.info('Bot logged in successfully')
 })
 
 bot.on('spawn', () => {
-  console.log('Bot spawned in the world')
-  console.log(`Position: ${bot.entity.position}`)
+  logger.info('Bot spawned in the world')
+  logger.info(`Position: ${bot.entity.position}`)
+
+  // Start UI server
+  startUIServer(bot)
 
   // Start the 3D viewer
   const viewerPort = 3007
@@ -128,13 +135,13 @@ bot.on('spawn', () => {
     if (wslIP) break
   }
 
-  console.log('\n=== Prismarine Viewer Started ===')
-  console.log(`Open your browser to: http://localhost:${viewerPort}`)
+  logger.info('=== Prismarine Viewer Started ===')
+  logger.info(`Viewer URL: http://localhost:${viewerPort}`)
   if (wslIP) {
-    console.log(`WSL2/Linux users on Windows: http://${wslIP}:${viewerPort}`)
+    logger.info(`WSL2/Windows: http://${wslIP}:${viewerPort}`)
   }
-  console.log('Camera mode: Third-person (God view)')
-  console.log('=====================================\n')
+  logger.info('Camera mode: Third-person (God view)')
+  logger.info('=====================================')
 
   // Auto-start REPL after a short delay for chunks to load
   setTimeout(() => {
@@ -144,9 +151,9 @@ bot.on('spawn', () => {
 
 // Function to start REPL (called via chat command)
 function startREPL() {
-  console.log('\n=== Starting interactive REPL ===')
-  console.log('You can now explore the bot object interactively!')
-  console.log('Try: bot.entity.position, ground(), etc.\n')
+  logger.info('=== Starting interactive REPL ===')
+  logger.info('You can now explore the bot object interactively!')
+  logger.info('Try: bot.entity.position, ground(), etc.')
 
   const replServer = repl.start({
     prompt: 'bot> ',
@@ -160,5 +167,5 @@ function startREPL() {
 }
 
 bot.on('end', (reason) => {
-  console.log('Bot disconnected:', reason)
+  logger.error(`Bot disconnected: ${reason}`)
 })
