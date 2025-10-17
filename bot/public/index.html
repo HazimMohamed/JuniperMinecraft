@@ -4,56 +4,105 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Juniper Bot Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              bg: '#0a0a0a',
+              panel: '#1a1a1a',
+              border: '#2a2a2a',
+              text: '#e0e0e0'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    #world-canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+  </style>
 </head>
-<body>
-  <header>
-    <h1>🌲 Juniper Bot Dashboard</h1>
-    <div class="status">
-      <span id="connection-status" class="status-indicator disconnected">Disconnected</span>
+<body class="bg-dark-bg text-dark-text font-mono">
+  <!-- Header -->
+  <header class="bg-dark-panel border-b border-dark-border px-6 py-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-green-400">🌲 Juniper Bot</h1>
+    <div class="flex items-center gap-4">
+      <span id="connection-status" class="px-3 py-1 rounded text-sm font-semibold bg-red-600">Disconnected</span>
     </div>
   </header>
 
-  <div class="container">
-    <!-- Left column: Viewers -->
-    <div class="viewer-section">
+  <!-- Main Content -->
+  <div class="h-[calc(100vh-73px)] flex">
+    <!-- Left Side: Viewers -->
+    <div class="flex-1 flex flex-col p-4 gap-4">
       <!-- 3D Viewer -->
-      <div class="panel viewer-panel">
-        <h2>3D Viewer</h2>
-        <iframe id="viewer-frame" src="http://localhost:3007" frameborder="0"></iframe>
-      </div>
-
-      <!-- World Observation (Top-down view) -->
-      <div class="panel world-panel">
-        <h2>🗺️ World Observation <span id="world-status">(waiting...)</span></h2>
-        <canvas id="world-canvas"></canvas>
-        <div id="world-info"></div>
+      <div class="flex-1 bg-dark-panel rounded-lg overflow-hidden border border-dark-border">
+        <iframe id="viewer-frame" src="http://localhost:3007" class="w-full h-full"></iframe>
       </div>
     </div>
 
-    <!-- Right side: Bot info and controls -->
-    <div class="info-section">
-      <!-- Bot Stats -->
-      <div class="panel">
-        <h3>📊 Bot Status</h3>
-        <div id="bot-stats">
-          <p>Connecting...</p>
+    <!-- Right Side: Tabs -->
+    <div class="w-[600px] flex flex-col bg-dark-panel border-l border-dark-border">
+      <!-- Tab Headers -->
+      <div class="flex border-b border-dark-border">
+        <button id="tab-terminal" class="tab-button flex-1 px-6 py-3 font-semibold text-sm transition-colors border-b-2 border-green-500 text-green-400">
+          💻 Terminal
+        </button>
+        <button id="tab-vision" class="tab-button flex-1 px-6 py-3 font-semibold text-sm transition-colors border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+          🗺️ Vision
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="flex-1 overflow-hidden">
+        <!-- Terminal Tab -->
+        <div id="content-terminal" class="tab-content h-full flex flex-col">
+          <!-- Console Logs -->
+          <div class="flex-1 flex flex-col p-4 border-b border-dark-border">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">CONSOLE LOGS</h3>
+            <div id="logs-container" class="flex-1 overflow-y-auto bg-black rounded p-2 text-xs font-mono"></div>
+          </div>
+
+          <!-- REPL -->
+          <div class="flex-1 flex flex-col p-4">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">REPL</h3>
+            <div id="repl-output" class="flex-1 overflow-y-auto bg-black rounded p-2 text-xs font-mono mb-2"></div>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                id="repl-input"
+                placeholder="bot.entity.position"
+                class="flex-1 bg-dark-bg border border-dark-border rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+              />
+              <button
+                id="repl-submit"
+                class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded font-semibold text-sm transition-colors"
+              >
+                Run
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- Console Logs -->
-      <div class="panel logs-panel">
-        <h3>📝 Console Logs</h3>
-        <div id="logs-container" class="scrollable"></div>
-      </div>
-
-      <!-- REPL -->
-      <div class="panel repl-panel">
-        <h3>💻 REPL</h3>
-        <div id="repl-output" class="scrollable"></div>
-        <div class="repl-input">
-          <input type="text" id="repl-input" placeholder="bot.entity.position" />
-          <button id="repl-submit">Execute</button>
+        <!-- Vision Tab -->
+        <div id="content-vision" class="tab-content h-full hidden flex-col p-4">
+          <!-- World Observation -->
+          <div class="mb-4">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm font-semibold text-gray-400">WORLD OBSERVATION</h3>
+              <span id="world-status" class="text-xs text-gray-500">(waiting...)</span>
+            </div>
+            <div class="bg-black rounded p-2 flex justify-center items-center" style="height: 400px;">
+              <canvas id="world-canvas" class="max-w-full max-h-full"></canvas>
+            </div>
+            <div id="world-info" class="mt-2 text-xs text-gray-400"></div>
+          </div>
         </div>
       </div>
     </div>

@@ -4,11 +4,16 @@ const logsContainer = document.getElementById('logs-container')
 const replOutput = document.getElementById('repl-output')
 const replInput = document.getElementById('repl-input')
 const replSubmit = document.getElementById('repl-submit')
-const botStats = document.getElementById('bot-stats')
 const viewerFrame = document.getElementById('viewer-frame')
 const worldCanvas = document.getElementById('world-canvas')
 const worldInfo = document.getElementById('world-info')
 const worldStatus = document.getElementById('world-status')
+
+// Tab elements
+const tabTerminal = document.getElementById('tab-terminal')
+const tabVision = document.getElementById('tab-vision')
+const contentTerminal = document.getElementById('content-terminal')
+const contentVision = document.getElementById('content-vision')
 
 // Connection state
 let logsConnected = false
@@ -278,14 +283,44 @@ function getBlockColor(blockName) {
   return colors[blockName] || '#808080'
 }
 
-// Update connection status to include world
+// Tab switching
+function switchTab(tab) {
+  // Hide all tab contents
+  contentTerminal.classList.add('hidden')
+  contentVision.classList.add('hidden')
+
+  // Reset all tab buttons
+  tabTerminal.classList.remove('border-green-500', 'text-green-400')
+  tabTerminal.classList.add('border-transparent', 'text-gray-400')
+  tabVision.classList.remove('border-green-500', 'text-green-400')
+  tabVision.classList.add('border-transparent', 'text-gray-400')
+
+  // Show selected tab
+  if (tab === 'terminal') {
+    contentTerminal.classList.remove('hidden')
+    contentTerminal.classList.add('flex')
+    tabTerminal.classList.remove('border-transparent', 'text-gray-400')
+    tabTerminal.classList.add('border-green-500', 'text-green-400')
+  } else if (tab === 'vision') {
+    contentVision.classList.remove('hidden')
+    contentVision.classList.add('flex')
+    tabVision.classList.remove('border-transparent', 'text-gray-400')
+    tabVision.classList.add('border-green-500', 'text-green-400')
+  }
+}
+
+// Tab click handlers
+tabTerminal.addEventListener('click', () => switchTab('terminal'))
+tabVision.addEventListener('click', () => switchTab('vision'))
+
+// Update connection status styling
 function updateConnectionStatus() {
   if (logsConnected && replConnected && worldConnected) {
     connectionStatus.textContent = 'Connected'
-    connectionStatus.className = 'status-indicator connected'
+    connectionStatus.className = 'px-3 py-1 rounded text-sm font-semibold bg-green-600'
   } else {
     connectionStatus.textContent = 'Disconnected'
-    connectionStatus.className = 'status-indicator disconnected'
+    connectionStatus.className = 'px-3 py-1 rounded text-sm font-semibold bg-red-600'
   }
 }
 
