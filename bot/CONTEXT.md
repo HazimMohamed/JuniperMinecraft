@@ -530,6 +530,276 @@ bot.viewer.drawLine('id', [points], 0xff0000)  // Draw red line
 
 ---
 
+## Agent Architecture (Hierarchical Expert Systems)
+
+### Overview
+The bot uses a **3-layer hierarchical architecture** with an Executive coordinator, specialized Expert systems, and low-level Motor Control. This design allows incremental evolution from hardcoded rules to ML, with each layer independently testable and replaceable.
+
+```
+Executive (Coordinator) - "What should I prioritize?"
+    ↓
+Experts (Navigation, Survival, Exploration) - "What should I do?"
+    ↓
+Motor Control (Executor) - "How do I move?"
+```
+
+### Layer 1: Executive
+**Role:** Coordinates experts, resolves conflicts, prioritizes goals
+**Input:** World state, expert proposals with confidence scores
+**Output:** Selected expert, priority weights, override commands
+**Evolution:** Rules → ML-based coordination
+
+**Example Decision:**
+```javascript
+// Health critical? → Survival expert
+// Has target? → Navigation expert
+// Idle? → Exploration expert
+```
+
+### Layer 2: Expert Systems
+
+#### Navigation Expert
+- **Goal:** Get to target position
+- **Input:** Bot position, target, local terrain
+- **Output:** Waypoint + confidence
+- **Implementation:** A* pathfinding → ML planner (later)
+
+#### Survival Expert
+- **Goal:** Stay alive (health, hunger, threats)
+- **Input:** Health, hunger, nearby mobs
+- **Output:** Survival action (eat, flee, etc.)
+- **Implementation:** Rule-based → ML decision-making
+
+#### Exploration Expert
+- **Goal:** Find interesting areas/resources
+- **Input:** Visited locations, surroundings
+- **Output:** Exploration direction
+- **Implementation:** Novelty detection → ML curiosity
+
+### Layer 3: Motor Control
+**Role:** Execute low-level movement toward waypoints
+**Input:** Current position, target waypoint, terrain
+**Output:** Physical actions (forward, jump, yaw, pitch)
+**Evolution:** Vector following → ML fine control
+
+### Key Design Principles
+
+1. **Proposal-Based:** Experts propose actions with confidence, don't execute directly
+2. **Graceful Degradation:** ML failures fall back to hardcoded rules
+3. **Observable Decisions:** All decisions logged with reasoning for debugging
+4. **Incremental ML:** Replace components one at a time (Motor → Experts → Executive)
+
+### Communication Protocol
+
+**Node.js (Main Loop):**
+1. Observe world via `observeWorld()`
+2. Query all experts for proposals (some local, some via Python API)
+3. Executive decides which expert to follow
+4. Motor control executes via Mineflayer
+5. Log decision for training data
+
+**Python (ML Service):**
+- FastAPI server with endpoints per expert/component
+- Receives observations, returns actions with confidence scores
+- Loads PyTorch models for inference
+
+### Evolution Roadmap
+
+**Phase 1 (Weeks 1-2):** All hardcoded rules
+- Executive: if/else priorities
+- Navigation: A* pathfinding
+- Motor: Simple vector following
+
+**Phase 2 (Weeks 3-4):** ML motor control
+- Train model on hardcoded motor control data
+- Replace vector following with learned model
+- Keep experts and executive as rules
+
+**Phase 3 (Weeks 5-6):** ML experts
+- Train navigation planner on A* demonstrations
+- Add survival decision model
+- Keep executive as rules
+
+**Phase 4 (Weeks 7+):** ML executive
+- Train coordinator to optimize expert selection
+- End-to-end learning possible at this stage
+
+### ML Model Specifications
+
+**Navigation Policy (Target: RX 6600 GPU)**
+- Input: Bot state (8) + Target (7) + Terrain 32×32 (1024) = 1,039 floats
+- Architecture: CNN terrain encoder + MLP policy head
+- Output: 5 discrete actions (forward/back/left/right/jump) or waypoint
+- Size: ~600K parameters (2.4MB)
+- Training: <1min for 10K samples on RX 6600
+
+**Motor Control Policy**
+- Input: Position, waypoint, local terrain
+- Output: forward, jump, yaw, pitch
+- Size: ~300K parameters
+- Inference: <1ms per decision
+
+### Why This Architecture?
+
+- **Matches project philosophy:** Start hardcoded, gradually evolve to ML
+- **Debuggable:** Know which component failed
+- **Modular:** Add new experts without touching existing code
+- **Scalable:** Simple targets now → arbitrary coordinates later
+- **GPU-friendly:** Small specialized models vs one giant model
+
+### Waypoint-Based Navigation System
+
+**Problem:** Python brain has 1-2s latency, but bot needs responsive 50ms control loop.
+
+**Solution:** Hierarchical movement system
+- **Python (Brain):** Sparse A* pathfinding generates waypoints every 3-5 blocks
+- **Node.js (Motor):** Low-level traversal handles jumping, turning, obstacle avoidance
+
+**How it works:**
+```
+Python: "Navigate to waypoint (104, 65, 204)"
+   ↓
+Node.js Motor Controller (20Hz loop):
+   → Turn toward waypoint
+   → Walk forward
+   → Detect height change → Jump
+   → Continue until waypoint reached
+   → Request next waypoint from Python
+```
+
+**Benefits:**
+- Python latency irrelevant (only called every 3-5 blocks)
+- Movement feels smooth (Node.js handles fine control at 50ms)
+- A* runs faster (sparse graph: ~256 nodes instead of 4,096)
+- Easy to debug and visualize
+
+**Data Transfer (Node.js → Python):**
+- Local terrain centered on bot (configurable size: default 64×64)
+- Height (Y) + walkability boolean per position
+- Flat arrays: ~5KB per update (varies with terrain size)
+- Push-based: every 1-2s or when bot moves >threshold blocks
+
+**Graph Optimization:**
+- Don't treat every block as A* node
+- Only add waypoint candidates where:
+  - Direction changes (corners)
+  - Height changes (jumps/drops)
+  - Every N blocks on straight paths (configurable waypoint spacing)
+- Creates "navigation mesh" style graph
+
+**Configurable Parameters:**
+- `TERRAIN_SIZE`: Side length of square terrain grid (default: 64)
+- `WAYPOINT_SPACING`: Blocks between waypoints on straight paths (default: 4)
+- `UPDATE_DISTANCE`: Bot movement threshold for terrain updates (default: 8)
+
+---
+
+## Implementation Status (Session: 2025-10-16 Evening)
+
+### ✅ COMPLETED: Traversability-Based Navigation System
+
+**What Was Built:**
+
+1. **Traversability Graph System** (`bot/waypoint-traversal.js`)
+   - `isBlockWalkable()`: Validates blocks (solid + 2 air above, no lava/fire)
+   - `canTraverse()`: Checks if bot can move between blocks
+   - Height constraints: Jump up 1, fall down 5
+   - Validates adjacent movement (8 directions + vertical)
+   - Checks for walls blocking movement
+
+2. **Graph Building** (`bot/navigator-bot.js`)
+   - `observeWorld()` now builds complete traversability graph
+   - Scans all ground blocks in 4-chunk radius (~20k blocks)
+   - Creates adjacency list: `{blockKey: [neighbor1, neighbor2, ...]}`
+   - Typical graph: ~19k nodes, ~129k edges
+   - Graph building takes ~1 second
+
+3. **A* Pathfinding** (`brain/brain.py`)
+   - `astar_pathfind()`: Standard A* with 3D Euclidean heuristic
+   - `simplify_path()`: Removes collinear waypoints
+   - `NavigationExpert.get_proposal()`: Returns waypoints with confidence
+   - Works on traversability graph (guaranteed valid paths)
+
+4. **Node.js ↔ Python Integration** (`bot/navigator-bot.js`, `brain/brain_cli.py`)
+   - `callPythonBrain()`: Spawns Python process, sends JSON via stdin
+   - `brain_cli.py`: Receives observation, runs A*, returns waypoints
+   - Communication: ~3MB JSON payload (graph data)
+   - Python process lifetime: ~200ms per pathfinding request
+
+5. **Waypoint Execution** (`bot/navigator-bot.js`)
+   - `executeWaypointSequence()`: Traverses waypoints sequentially
+   - Uses existing `traverseToWaypoint()` motor control
+   - 20Hz control loop (turn, walk, jump)
+
+6. **Position Snapping** (`bot/navigator-bot.js`)
+   - `findNearestWalkableBlock()`: Snaps positions to graph nodes
+   - Searches expanding radius (1-10 blocks)
+   - Ensures bot/target positions are always in graph
+   - Critical fix: bot position often doesn't match ground scan
+
+**File Structure:**
+```
+bot/
+├── navigator-bot.js          # Main bot + navigation command + graph building
+├── waypoint-traversal.js     # Traversability logic + motor control
+├── logger.js                 # Winston logging
+├── ui-server.js              # Web dashboard
+└── public/                   # UI files
+
+brain/
+├── brain.py                  # NavigationExpert + A* + path simplification
+├── brain_cli.py              # CLI interface for Node.js integration
+├── test_pathfinding.py       # Unit tests for A*
+└── venv/                     # Python virtual environment
+```
+
+**Commands Available:**
+- `observe` - Build traversability graph and view stats
+- `goto X Y Z` - Low-level motor test (direct waypoint, no pathfinding)
+- `navigate X Y Z` - Full A* navigation with obstacle avoidance
+
+**Current Limitations:**
+
+1. **Ground Scan Issues**
+   - Only scans topmost non-air block per column
+   - Misses platforms, overhangs, caves
+   - Bot position often not in graph (requires snapping)
+   - Target position often not in graph (requires snapping)
+   - **TODO:** Scan multiple Y levels around bot/target
+
+2. **Performance**
+   - Graph building: ~1 second for 20k blocks
+   - Python spawn + A*: ~200ms
+   - Total navigation latency: ~1.2 seconds
+   - Acceptable for now, optimize later
+
+3. **Motor Control**
+   - Basic turn + walk + jump logic
+   - No sprint, no precise jumping
+   - No swimming/ladder climbing
+   - **Works for flat terrain and simple obstacles**
+
+**Next Steps (Not Yet Implemented):**
+
+- [ ] Improve world observation (scan multiple Y levels)
+- [ ] Handle bot standing on platforms/air
+- [ ] Add sprint for long distances
+- [ ] Swimming and ladder support
+- [ ] Real-time path re-planning if blocked
+- [ ] Visualize path in 3D viewer
+- [ ] Add FastAPI server for persistent Python process (vs spawning each time)
+
+**Known Issues:**
+
+- **CRITICAL: Navigation causes bot seizures and hangs** - Bot gets stuck in weird movement loops, takes forever to reach waypoints, pathfinding completes but execution fails
+- Bot/target positions require snapping to nearest walkable block
+- Graph doesn't include non-ground blocks (platforms, overhangs)
+- Automatic world observation disabled (was too noisy in logs)
+- No path visualization yet
+- Motor control needs significant debugging (turn/walk/jump logic is broken)
+
+---
+
 *Last Updated: 2025-10-16*
 *Session Author: ZuzuBlue (hazim@hazim.dev)*
 *AI Assistant: Claude (Anthropic)*
