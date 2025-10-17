@@ -9,7 +9,7 @@ const vm = require('vm')
 
 const UI_PORT = 3009
 
-function startUIServer(bot, printGroundMap) {
+function startUIServer(bot, replContext = {}) {
   const app = express()
   const httpServer = createServer(app)
   const io = new Server(httpServer)
@@ -42,19 +42,18 @@ function startUIServer(bot, printGroundMap) {
   replNamespace.on('connection', (socket) => {
     logger.info('UI connected to REPL')
 
-    // Create REPL context with bot access
-    const replContext = {
+    // Create REPL context with bot access and custom functions
+    const context = {
       bot: bot,
       vec3: require('vec3'),
       console: console,
-      printGroundMap: printGroundMap,
-      ground: printGroundMap  // Alias for convenience
+      ...replContext  // Spread custom context passed from main bot
     }
 
     socket.on('eval', (code) => {
       try {
         // Execute code in sandboxed context
-        const result = vm.runInNewContext(code, replContext, {
+        const result = vm.runInNewContext(code, context, {
           timeout: 5000,
           displayErrors: true
         })

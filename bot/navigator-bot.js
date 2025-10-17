@@ -1,5 +1,4 @@
 const mineflayer = require('mineflayer')
-const repl = require('repl')
 const vec3 = require('vec3')
 const os = require('os')
 const { mineflayer: mineflayerViewer } = require('prismarine-viewer')
@@ -21,13 +20,6 @@ bot.on('chat', (username, message) => {
   // Command: print ground map of spawn chunk
   if (message === 'ground') {
     printGroundMap()
-    return
-  }
-
-  // Command: start REPL for debugging
-  if (message === 'repl') {
-    startREPL()
-    bot.chat('REPL started in console')
     return
   }
 
@@ -108,8 +100,12 @@ bot.on('spawn', () => {
   logger.info('Bot spawned in the world')
   logger.info(`Position: ${bot.entity.position}`)
 
-  // Start UI server with ground map function
-  startUIServer(bot, printGroundMap)
+  // Start UI server with REPL context
+  // Add any functions you want available in the web REPL here
+  startUIServer(bot, {
+    printGroundMap: printGroundMap,
+    ground: printGroundMap  // Alias for convenience
+  })
 
   // Start the 3D viewer
   const viewerPort = 3007
@@ -142,29 +138,7 @@ bot.on('spawn', () => {
   }
   logger.info('Camera mode: Third-person (God view)')
   logger.info('=====================================')
-
-  // Auto-start REPL after a short delay for chunks to load
-  setTimeout(() => {
-    startREPL()
-  }, 2000)
 })
-
-// Function to start REPL (called via chat command)
-function startREPL() {
-  logger.info('=== Starting interactive REPL ===')
-  logger.info('You can now explore the bot object interactively!')
-  logger.info('Try: bot.entity.position, ground(), etc.')
-
-  const replServer = repl.start({
-    prompt: 'bot> ',
-    useColors: true
-  })
-
-  // Make bot and functions available in the REPL context
-  replServer.context.bot = bot
-  replServer.context.ground = printGroundMap
-  replServer.context.printGroundMap = printGroundMap
-}
 
 bot.on('end', (reason) => {
   logger.error(`Bot disconnected: ${reason}`)
