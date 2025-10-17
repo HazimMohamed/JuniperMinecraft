@@ -6,6 +6,7 @@ const os = require('os')
 const winston = require('winston')
 const { logger, logBuffer } = require('./logger')
 const vm = require('vm')
+const { getBlockTexture, getBlockTextures, getAllBlockTextures } = require('./block-textures')
 
 const UI_PORT = 3009
 
@@ -20,6 +21,29 @@ function startUIServer(bot, replContext = {}) {
   // Root route serves dashboard
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'))
+  })
+
+  // API endpoint to get a single block texture
+  app.get('/api/texture/:blockName', (req, res) => {
+    const texture = getBlockTexture(req.params.blockName)
+    if (texture) {
+      res.json({ blockName: req.params.blockName, texture })
+    } else {
+      res.status(404).json({ error: 'Texture not found' })
+    }
+  })
+
+  // API endpoint to get multiple block textures
+  app.post('/api/textures', express.json(), (req, res) => {
+    const blockNames = req.body.blocks || []
+    const textures = getBlockTextures(blockNames)
+    res.json(textures)
+  })
+
+  // API endpoint to get all textures (warning: large response)
+  app.get('/api/textures/all', (req, res) => {
+    const textures = getAllBlockTextures()
+    res.json(textures)
   })
 
   // Socket.IO namespace for log streaming
