@@ -6,10 +6,20 @@ const replInput = document.getElementById('repl-input')
 const replSubmit = document.getElementById('repl-submit')
 const botStats = document.getElementById('bot-stats')
 const viewerFrame = document.getElementById('viewer-frame')
+const worldCanvas = document.getElementById('world-canvas')
+const worldInfo = document.getElementById('world-info')
+const worldStatus = document.getElementById('world-status')
 
 // Connection state
 let logsConnected = false
 let replConnected = false
+let worldConnected = false
+
+// Canvas context
+const ctx = worldCanvas ? worldCanvas.getContext('2d') : null
+
+// Texture cache
+const textureCache = {}
 
 // Update viewer iframe with WSL IP if needed
 function updateViewerURL() {
@@ -175,6 +185,109 @@ replInput.addEventListener('keypress', (e) => {
     executeREPL()
   }
 })
+
+// Connect to world observation namespace
+const worldSocket = io('/world')
+
+worldSocket.on('connect', () => {
+  console.log('Connected to world observer')
+  worldConnected = true
+  updateConnectionStatus()
+  if (worldStatus) worldStatus.textContent = '(connected)'
+})
+
+worldSocket.on('disconnect', () => {
+  console.log('Disconnected from world observer')
+  worldConnected = false
+  updateConnectionStatus()
+  if (worldStatus) worldStatus.textContent = '(disconnected)'
+})
+
+worldSocket.on('observation', (observation) => {
+  console.log('Received world observation:', observation)
+  if (worldStatus) worldStatus.textContent = `(${observation.blocks.length} blocks)`
+  renderWorldObservation(observation)
+})
+
+// Render world observation on canvas
+async function renderWorldObservation(observation) {
+  if (!ctx || !worldCanvas) return
+
+  const { blocks, area, botPosition } = observation
+  const { startX, endX, startZ, endZ } = area
+
+  // Calculate dimensions
+  const worldWidth = endX - startX + 1
+  const worldHeight = endZ - startZ + 1
+
+  // Set canvas size (each block = 4 pixels for 144x144 = 576x576)
+  const pixelsPerBlock = 4
+  worldCanvas.width = worldWidth * pixelsPerBlock
+  worldCanvas.height = worldHeight * pixelsPerBlock
+
+  // Clear canvas
+  ctx.fillStyle = '#000'
+  ctx.fillRect(0, 0, worldCanvas.width, worldCanvas.height)
+
+  // Load textures and render each block
+  for (const block of blocks) {
+    const x = block.x - startX
+    const z = block.z - startZ
+
+    // Simple color mapping for now (we'll add textures next)
+    const color = getBlockColor(block.name)
+    ctx.fillStyle = color
+    ctx.fillRect(
+      x * pixelsPerBlock,
+      z * pixelsPerBlock,
+      pixelsPerBlock,
+      pixelsPerBlock
+    )
+  }
+
+  // Draw bot position
+  const botX = (botPosition.x - startX) * pixelsPerBlock
+  const botZ = (botPosition.z - startZ) * pixelsPerBlock
+  ctx.fillStyle = '#00ff00'
+  ctx.fillRect(botX - 2, botZ - 2, 4, 4)
+
+  // Update info
+  if (worldInfo) {
+    worldInfo.innerHTML = `
+      <p>Blocks: ${blocks.length}</p>
+      <p>Area: ${worldWidth}x${worldHeight}</p>
+      <p>Bot: (${botPosition.x.toFixed(1)}, ${botPosition.y.toFixed(1)}, ${botPosition.z.toFixed(1)})</p>
+    `
+  }
+}
+
+// Simple color mapping for block types
+function getBlockColor(blockName) {
+  const colors = {
+    'grass_block': '#7cbd6b',
+    'dirt': '#8b6f47',
+    'stone': '#7f7f7f',
+    'sand': '#e0d8a7',
+    'water': '#3f76e4',
+    'oak_log': '#9c7f4e',
+    'oak_leaves': '#76a84c',
+    'cobblestone': '#7a7a7a',
+    'gravel': '#837970',
+    'bedrock': '#565656'
+  }
+  return colors[blockName] || '#808080'
+}
+
+// Update connection status to include world
+function updateConnectionStatus() {
+  if (logsConnected && replConnected && worldConnected) {
+    connectionStatus.textContent = 'Connected'
+    connectionStatus.className = 'status-indicator connected'
+  } else {
+    connectionStatus.textContent = 'Disconnected'
+    connectionStatus.className = 'status-indicator disconnected'
+  }
+}
 
 // Focus REPL input on load
 window.addEventListener('load', () => {
