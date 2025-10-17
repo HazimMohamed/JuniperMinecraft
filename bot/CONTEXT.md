@@ -5,7 +5,7 @@
 
 **Philosophy:** Start with hardcoded solutions to verify the interface works, then gradually replace components with learned behavior - like evolution discovering primitive intelligence.
 
-**Current Phase:** Phase 1, Task 2 - Building developer UI to access bot's "mind"
+**Current Phase:** Phase 1, Task 2 COMPLETE - Developer UI built and integrated
 
 ---
 
@@ -25,10 +25,11 @@
 
 ### Network Setup & Known Issues
 - **Prismarine Viewer Port:** 3007
+- **UI Dashboard Port:** 3009 (NEW!)
 - **WSL2 Networking Quirk:** `localhost` from Windows browser works for HTTP but **WebSocket connections fail**
   - **Solution:** Must use WSL IP address (e.g., http://172.21.72.216:3007) for WebSocket to work
-  - Bot automatically detects and prints correct WSL IP on startup
-  - Viewer configured with `host: '0.0.0.0'` to bind to all interfaces
+  - Bot automatically detects and prints correct WSL IP on startup for both viewer and dashboard
+  - Both servers configured with `host: '0.0.0.0'` to bind to all interfaces
 
 ---
 
@@ -68,15 +69,45 @@
   - Drawing primitives (lines, points, boxes) via `bot.viewer.drawLine()`, etc.
   - Block click events via `bot.viewer.on('blockClicked')`
 
+### UI Dashboard System (NEW!)
+- **Port:** 3009
+- **Architecture:** Unified server approach - bot hosts everything
+  - Express HTTP server serves static dashboard files
+  - Socket.IO provides real-time bidirectional communication
+  - Two namespaces: `/logs` for log streaming, `/repl` for interactive REPL
+- **Features:**
+  - **Real-time Log Streaming:** Winston logger broadcasts to connected UI clients
+  - **Web-based REPL:** Execute JavaScript in bot context from browser
+  - **3D Viewer Integration:** Prismarine viewer embedded via iframe
+  - **Auto-buffering:** Last 500 log entries kept in memory for new connections
+- **Implementation:** `ui-server.js` module, `logger.js` winston config, `public/` static files
+- **Access:** `http://<WSL_IP>:3009` from Windows browser
+
+### Logging System
+- **Library:** Winston v3.x
+- **Transports:** Console (colored), Socket.IO stream, log buffer
+- **Format:** `[HH:mm:ss] LEVEL: message`
+- **Log Buffer:** Keeps last 500 entries for UI history on connect
+- **Levels:** info, warn, error
+- **Integration:** Replaced all `console.log` calls in navigator-bot.js
+
 ### File Structure
 ```
-/home/zuzu/Code/Juniper/bot/
-├── navigator-bot.js          # Main bot code (renamed from echo-bot.js)
-├── package.json              # Dependencies & npm scripts
-├── PROJECT_PLAN.md           # High-level project roadmap
-├── NOTES.md                  # Technical notes on chunk storage
-├── CONTEXT.md                # This file - session continuity
-└── chunk_data.JSON           # (untracked) Sample chunk data output
+/home/zuzu/Code/Juniper/
+├── bot/
+│   ├── navigator-bot.js          # Main bot code
+│   ├── logger.js                 # Winston logger config (NEW!)
+│   ├── ui-server.js              # Express + Socket.IO server (NEW!)
+│   ├── public/                   # UI dashboard files (NEW!)
+│   │   ├── index.html           # Dashboard HTML
+│   │   ├── style.css            # Dashboard styles
+│   │   └── app.js               # Frontend Socket.IO client
+│   ├── package.json              # Dependencies & npm scripts
+│   ├── PROJECT_PLAN.md           # High-level project roadmap
+│   ├── NOTES.md                  # Technical notes on chunk storage
+│   └── CONTEXT.md                # This file - session continuity
+├── mc_server/                    # Minecraft server
+└── CLAUDE.md                     # Global instructions
 ```
 
 ---
@@ -138,18 +169,28 @@ npm run bot
 node navigator-bot.js
 ```
 
-### Accessing the Viewer
-1. Start bot (will print WSL IP)
-2. Open browser to `http://<WSL_IP>:3007` (e.g., http://172.21.72.216:3007)
-3. If IP changed: run `hostname -I` in WSL to get new IP
+### Accessing the Dashboard
+1. Start bot with `npm run bot` (will print WSL IP)
+2. Open browser to `http://<WSL_IP>:3009` (e.g., http://172.21.72.216:3009)
+3. Dashboard shows:
+   - Embedded 3D viewer (left side)
+   - Real-time log stream (right top)
+   - Interactive REPL (right bottom)
+4. If IP changed: run `hostname -I` in WSL to get new IP
 
-### Debugging
-- **REPL Access:** Type `repl` in Minecraft chat or wait 2s after spawn
-- **Available in REPL:**
-  - `bot` - Full mineflayer bot instance
-  - `ground()` - Alias for `printGroundMap()`
-  - `printGroundMap()` - Run ground scan
-- **Viewer Drawing:** Use `bot.viewer.drawLine(id, points, color)` for visual debugging
+### Using the Web REPL
+- Type JavaScript code in the REPL input at bottom of dashboard
+- Execute with Enter key or Execute button
+- Available in context: `bot`, `vec3`, `console`
+- Examples:
+  - `bot.entity.position` - Get bot position
+  - `bot.blockAt(vec3(0, 64, 0))` - Check block at coordinates
+  - Full access to bot API
+
+### Legacy Console REPL
+- **Access:** Type `repl` in Minecraft chat or wait 2s after spawn
+- **Context:** Same as web REPL (`bot`, `ground()`, `printGroundMap()`)
+- **Note:** Web REPL is preferred for better UX
 
 ---
 
@@ -176,7 +217,10 @@ node navigator-bot.js
   "mineflayer": "^4.33.0",           // Main bot framework
   "prismarine-viewer": "^1.33.0",    // 3D visualization
   "minecraft-protocol": "^1.62.0",   // Protocol implementation
-  "canvas": "^3.2.0"                 // Required by viewer
+  "canvas": "^3.2.0",                // Required by viewer
+  "express": "^4.21.2",              // HTTP server for UI (NEW!)
+  "socket.io": "^4.8.1",             // Real-time communication (NEW!)
+  "winston": "^3.17.0"               // Logging system (NEW!)
 }
 ```
 
@@ -184,6 +228,9 @@ node navigator-bot.js
 - `os` - Network interface detection for WSL IP
 - `repl` - Interactive debugging console
 - `vec3` - 3D vector math (from mineflayer ecosystem)
+- `vm` - Sandboxed code execution for web REPL
+- `http` - HTTP server creation
+- `path` - File path handling
 
 ---
 
@@ -207,12 +254,13 @@ node navigator-bot.js
 
 ## Next Steps (From PROJECT_PLAN.md)
 
-### Immediate: Task 2 - Build Developer UI
-- Create web-based dashboard separate from viewer
-- Display bot's output stream (console logs, chat)
-- Visualize ground map data (not just text dump)
-- Embed Prismarine viewer via iframe
-- Add control panels, stats display
+### ✅ COMPLETED: Task 2 - Build Developer UI
+- ✅ Created unified web-based dashboard (bot hosts everything)
+- ✅ Real-time log streaming with winston + Socket.IO
+- ✅ Web-based interactive REPL
+- ✅ Embedded Prismarine viewer via iframe
+- ✅ Clean modern UI with dark theme
+- **Access:** http://<WSL_IP>:3009
 
 ### After Developer UI: Task 3 - Look Towards Target
 - Implement hardcoded target-looking logic
@@ -260,16 +308,17 @@ Minecraft uses palette compression for efficient chunk storage:
 - ✅ Bot can see 4-chunk radius in all directions
 - ✅ Ground map successfully scans entire visible area
 - ✅ 3D viewer accessible from Windows browser via WSL IP
-- ✅ REPL allows interactive debugging
-- ✅ Chat commands trigger bot actions
+- ✅ Web dashboard with real-time logging and REPL (NEW!)
+- ✅ Interactive browser-based REPL for bot control (NEW!)
+- ✅ Winston logging system with UI streaming (NEW!)
+- ✅ Unified server architecture (bot hosts everything) (NEW!)
 
 ### What Doesn't Exist Yet
-- ❌ Developer UI dashboard
 - ❌ Any movement/navigation code
 - ❌ Any ML/AI components
 - ❌ Target block detection/selection
 - ❌ Pathfinding algorithm
-- ❌ Ground map visualization (only console logs)
+- ❌ Advanced ground map visualization (text logs only for now)
 
 ### Design Philosophy Reminders
 - **Hardcode first, learn later** - Prove each capability works before adding ML
@@ -321,6 +370,50 @@ Minecraft uses palette compression for efficient chunk storage:
 - Build separate developer UI around viewer
 - Focus on surface-level ground mapping first
 - Defer caves/underground to future phases
+
+### Session: 2025-10-16 (Evening) - UI Dashboard Implementation
+**Major Accomplishments:**
+1. Restructured to monorepo
+   - Merged bot/, mc_server/, ui/ into single repo
+   - Force pushed clean history to GitHub
+   - Added comprehensive .gitignore
+
+2. Built unified UI dashboard system
+   - Bot now hosts everything (viewer + dashboard) in single process
+   - Express server on port 3009 serves dashboard
+   - Socket.IO with two namespaces: `/logs` and `/repl`
+   - Real-time log streaming with winston
+   - Web-based interactive REPL with full bot access
+
+3. Complete logging overhaul
+   - Replaced all console.log with winston logger
+   - Custom transports: console, Socket.IO stream, log buffer
+   - Auto-buffers last 500 logs for new UI connections
+   - Color-coded output with timestamps
+
+4. Dashboard features implemented
+   - Clean dark-themed UI with grid layout
+   - Left: Embedded 3D viewer (iframe to port 3007)
+   - Right top: Real-time scrolling log stream
+   - Right bottom: Interactive REPL with command history
+   - Auto-scrolling, auto-cleanup of old entries
+   - Connection status indicator
+
+**Technical Decisions:**
+- Socket.IO over raw WebSocket (better path routing)
+- Winston for logging (multiple transports, production-ready)
+- Unified server approach (YAGNI - don't split unnecessarily)
+- VM sandboxing for web REPL execution
+- Security deferred (dev-only tool for now)
+
+**Files Created:**
+- `logger.js` - Winston configuration with custom transports
+- `ui-server.js` - Express + Socket.IO server module
+- `public/index.html` - Dashboard HTML structure
+- `public/style.css` - Dark theme styling
+- `public/app.js` - Frontend Socket.IO client logic
+
+**Result:** Task 2 complete! Bot now has full developer visibility via web dashboard at port 3009.
 
 ---
 
